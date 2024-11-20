@@ -1,0 +1,9 @@
+mutation createMultiVideoHighlight($input: CreateMultiVideoHighlightInput!) {
+	createMultiVideoHighlight(input: $input) {
+		highlight {
+			title
+			id
+			lengthSeconds
+		}
+	}
+}

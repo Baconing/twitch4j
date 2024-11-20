@@ -7,13 +7,7 @@ import com.github.philippheuer.events4j.core.EventManager;
 import com.github.twitch4j.common.annotation.Unofficial;
 import com.github.twitch4j.common.config.ProxyConfig;
 import com.github.twitch4j.graphql.command.*;
-import com.github.twitch4j.graphql.internal.type.CommunityPointsCustomRewardRedemptionStatus;
-import com.github.twitch4j.graphql.internal.type.CreateCommunityPointsCommunityGoalInput;
-import com.github.twitch4j.graphql.internal.type.CreatePollInput;
-import com.github.twitch4j.graphql.internal.type.CreatePredictionEventInput;
-import com.github.twitch4j.graphql.internal.type.UnbanRequestStatus;
-import com.github.twitch4j.graphql.internal.type.UnbanRequestsSortOrder;
-import com.github.twitch4j.graphql.internal.type.UpdateCommunityPointsCommunityGoalInput;
+import com.github.twitch4j.graphql.internal.type.*;
 import io.github.xanthic.cache.api.Cache;
 import io.github.xanthic.cache.api.domain.ExpiryType;
 import io.github.xanthic.cache.core.CacheApi;
@@ -204,6 +198,10 @@ public class TwitchGraphQL {
 
     public CommandUpdateClip updateClip(OAuth2Credential auth, String slug, String newTitle) {
         return new CommandUpdateClip(getApolloClient(auth), slug, newTitle);
+    }
+
+    public CommandCreateMultiVideoHighlight createMutliVideoHighlight(OAuth2Credential auth, CreateMultiVideoHighlightInput input) {
+        return new CommandCreateMultiVideoHighlight(getApolloClient(auth), input);
     }
 
     public CommandFetchCommunityPointsSettings fetchChannelPointRewards(OAuth2Credential auth, String channelLogin) {
