@@ -2,6 +2,8 @@ package com.github.twitch4j.graphql;
 
 import com.apollographql.apollo.ApolloClient;
 import com.apollographql.apollo.internal.batch.BatchConfig;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.philippheuer.credentialmanager.domain.OAuth2Credential;
 import com.github.philippheuer.events4j.core.EventManager;
 import com.github.twitch4j.common.annotation.Unofficial;
@@ -14,12 +16,17 @@ import io.github.xanthic.cache.core.CacheApi;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
+import okhttp3.Response;
+import org.jetbrains.annotations.Nullable;
 
+import java.io.IOException;
 import java.time.Duration;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * This is an unofficial API that is not intended for third-party use. Use at your own risk. Methods could change or stop working at any time.
@@ -131,7 +138,13 @@ public class TwitchGraphQL {
                         .header("Accept", "*/*")
                         .header("Client-Id", clientId)
                         .header("User-Agent", userAgent)
-                        .header("X-Device-Id", CommandComputeId.INSTANCE.getId());
+                        .header("X-Device-Id", CommandComputeId.INSTANCE.getId())
+                        .header("Origin", "https://www.twitch.tv")
+                        .header("Referer", "https://www.twitch.tv/")
+                        .header("Sec-Fetch-Dest", "empty")
+                        .header("Sec-Fetch-Mode", "cors")
+                        .header("Sec-Fetch-Site", "same-site")
+                        .header("Sec-GPC", "1");
 
                     // Apply custom headers
                     additionalHeaders.forEach(requestBuilder::header);
@@ -145,6 +158,21 @@ public class TwitchGraphQL {
                     return chain.proceed(request);
                 });
 
+            // Get integrity token from https://gql.twitch.tv/integrity
+            String integrity = getIntegrity(clientBuilder.build());
+
+            if (integrity != null) {
+                clientBuilder.addInterceptor(chain -> {
+                    Request original = chain.request();
+
+                    Request.Builder requestBuilder = original
+                        .newBuilder()
+                        .header("Client-Integrity", integrity);
+
+                    return chain.proceed(requestBuilder.build());
+                });
+            }
+
             // Apply proxy settings to Http Client
             if (proxyConfig != null)
                 proxyConfig.apply(clientBuilder);
@@ -156,6 +184,24 @@ public class TwitchGraphQL {
                 .batchingConfiguration(new BatchConfig(batchingEnabled, 10L, 10))
                 .build();
         });
+    }
+
+    private @Nullable String getIntegrity(OkHttpClient http) {
+        try (Response response = http.newCall(new Request.Builder().url("https://gql.twitch.tv/integrity").build()).execute()) {
+            if (response.isSuccessful()) {
+                try (JsonParser parser = new ObjectMapper().getFactory().createParser(response.body().byteStream())) {
+                    return parser.readValueAsTree().get("token").asToken().asString();
+                }
+            }
+
+            try (JsonParser parser = new ObjectMapper().getFactory().createParser(response.body().byteStream())) {
+                log.error("Failed to fetch integrity token: {}", parser.readValueAsTree().get("message").asToken().asString());
+                return null;
+            }
+        } catch (IOException e) {
+            log.error("Failed to fetch integrity token", e);
+            return null;
+        }
     }
 
     public CommandFetchBanStatus fetchBanStatus(OAuth2Credential auth, String channelId, String userId) {
